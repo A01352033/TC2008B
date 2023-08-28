@@ -2,7 +2,6 @@
 # Fecha: 27 de agosto del 2023
 # Clase: TC2008B
 
-
 import random
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -12,97 +11,48 @@ EMPTY = 0
 FISH = 1
 SHARK = 2
 
-colors = ['#87CEEB', '#FF6347', '#32CD32']
-n_bin = 3
-cm = ListedColormap(colors, N=n_bin)
+color_palette = ['#66CCCC', '#FF6666', '#66FF66']
+num_colors = 3
+ecosystem_cmap = ListedColormap(color_palette, N=num_colors)
 
-MAX_CHRONONS = 400
+NUM_TIME_STEPS = 400
 SEED = 10
 random.seed(SEED)
 
-initial_energies = {FISH: 20, SHARK: 3}
-fertility_thresholds = {FISH: 4, SHARK: 12}
-
-class Creature():
-    def __init__(self, id, x, y, init_energy, fertility_threshold):
-        self.id = id
+class Organism():
+    def __init__(self, species, x, y, energy, reproduction_limit):
+        self.species = species
         self.x, self.y = x, y
-        self.energy = init_energy
-        self.fertility_threshold = fertility_threshold
-        self.fertility = 0
-        self.dead = False
+        self.energy = energy
+        self.reproduction_limit = reproduction_limit
+        self.reproduction_counter = 0
+        self.is_dead = False
 
-class World():
+class Ecosystem():
     def __init__(self, width=75, height=50):
         self.width, self.height = width, height
-        self.ncells = width * height
-        self.grid = [[EMPTY]*width for y in range(height)]
-        self.creatures = []
+        self.total_cells = width * height
+        self.grid = [[EMPTY]*width for _ in range(height)]
+        self.organisms = []
 
-    def spawn_creature(self, creature_id, x, y):
-        creature = Creature(creature_id, x, y,
-                            initial_energies[creature_id],
-                            fertility_thresholds[creature_id])
-        self.creatures.append(creature)
-        self.grid[y][x] = creature
-
-    def populate_world(self, nfish=120, nsharks=40):
-        self.nfish, self.nsharks = nfish, nsharks
-
-        def place_creatures(ncreatures, creature_id):
-            for i in range(ncreatures):
-                while True:
-                    x, y = divmod(random.randrange(self.ncells), self.height)
-                    if not self.grid[y][x]:
-                        self.spawn_creature(creature_id, x, y)
-                        break
-
-        place_creatures(self.nfish, FISH)
-        place_creatures(self.nsharks, SHARK)
-
-    def get_world_image_array(self):
-        return [[self.grid[y][x].id if self.grid[y][x] else 0
-                    for x in range(self.width)] for y in range(self.height)]
-
-    def get_world_image(self):
-        im =  self.get_world_image_array()
-        fig = plt.figure(figsize=(8.3333, 6.25), dpi=72)
-        ax = fig.add_subplot(111)
-        ax.imshow(im, interpolation='nearest', cmap=cm)
-
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.axis('off')
-        return fig
-
-    def show_world(self):
-        fig = self.get_world_image()
-        plt.show()
-        plt.close(fig)
-
-    def save_world(self, filename):
-        fig = self.get_world_image()
-        plt.savefig(filename, dpi=72, bbox_inches='tight', pad_inches=0)
-        plt.close(fig)
-
-    def get_neighbours(self, x, y):
-        neighbours = {}
+    def get_neighbors(self, x, y):
+        neighbors = {}
         for dx, dy in ((0,-1), (1,0), (0,1), (-1,0)):
             xp, yp = (x+dx) % self.width, (y+dy) % self.height
-            neighbours[xp,yp] = self.grid[yp][xp]
-        return neighbours
+            neighbors[xp,yp] = self.grid[yp][xp]
+        return neighbors
 
-    def evolve_creature(self, creature):
-        neighbours = self.get_neighbours(creature.x, creature.y)
-        creature.fertility += 1
+    def evolve_organism(self, organism):
+        neighbors = self.get_neighbors(organism.x, organism.y)
+        organism.reproduction_counter += 1
         moved = False
-        if creature.id == SHARK:
+        if organism.species == SHARK:
             try:
                 xp, yp = random.choice([pos
-                            for pos in neighbours if neighbours[pos]!=EMPTY
-                                                and neighbours[pos].id==FISH])
-                creature.energy += 2
-                self.grid[yp][xp].dead = True
+                            for pos in neighbors if neighbors[pos]!=EMPTY
+                                                and neighbors[pos].species==FISH])
+                organism.energy += 2
+                self.grid[yp][xp].is_dead = True
                 self.grid[yp][xp] = EMPTY
                 moved = True
             except IndexError:
@@ -111,54 +61,103 @@ class World():
         if not moved:
             try:
                 xp, yp = random.choice([pos
-                            for pos in neighbours if neighbours[pos]==EMPTY])
-                if creature.id != FISH:
-                    creature.energy -= 1
+                            for pos in neighbors if neighbors[pos]==EMPTY])
+                if organism.species != FISH:
+                    organism.energy -= 1
                 moved = True
             except IndexError:
-                xp, yp = creature.x, creature.y
+                xp, yp = organism.x, organism.y
 
-        if creature.energy < 0:
-            creature.dead = True
-            self.grid[creature.y][creature.x] = EMPTY
+        if organism.energy < 0:
+            organism.is_dead = True
+            self.grid[organism.y][organism.x] = EMPTY
         elif moved:
-            x, y = creature.x, creature.y
-            creature.x, creature.y = xp, yp
-            self.grid[yp][xp] = creature
-            if creature.fertility >= creature.fertility_threshold:
-                creature.fertility = 0
-                self.spawn_creature(creature.id, x, y)
+            x, y = organism.x, organism.y
+            organism.x, organism.y = xp, yp
+            self.grid[yp][xp] = organism
+            if organism.reproduction_counter >= organism.reproduction_limit:
+                organism.reproduction_counter = 0
+                self.introduce_organism(organism.species, x, y)
             else:
                 self.grid[y][x] = EMPTY
 
-    def evolve_world(self):
-        random.shuffle(self.creatures)
-        ncreatures = len(self.creatures)
-        for i in range(ncreatures):
-            creature = self.creatures[i]
-            if creature.dead:
+    def introduce_organism(self, species, x, y):
+        organism = Organism(species, x, y,
+                            initial_energy_levels[species],
+                            reproduction_limits[species])
+        self.organisms.append(organism)
+        self.grid[y][x] = organism
+
+    def get_ecosystem_image(self):
+        img_array = self.get_ecosystem_array()
+        fig = plt.figure(figsize=(8.3333, 6.25), dpi=72)
+        ax = fig.add_subplot(111)
+        ax.imshow(img_array, interpolation='nearest', cmap=ecosystem_cmap)
+
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.axis('off')
+        return fig
+
+    def populate_ecosystem(self, num_fish=120, num_sharks=40):
+        self.num_fish, self.num_sharks = num_fish, num_sharks
+
+        def place_organisms(num_organisms, species):
+            for _ in range(num_organisms):
+                while True:
+                    x, y = divmod(random.randrange(self.total_cells), self.height)
+                    if not self.grid[y][x]:
+                        self.introduce_organism(species, x, y)
+                        break
+
+        place_organisms(self.num_fish, FISH)
+        place_organisms(self.num_sharks, SHARK)
+
+    def evolve_ecosystem(self):
+        random.shuffle(self.organisms)
+        num_organisms = len(self.organisms)
+        for i in range(num_organisms):
+            organism = self.organisms[i]
+            if organism.is_dead:
                 continue
-            self.evolve_creature(creature)
+            self.evolve_organism(organism)
 
-        self.creatures = [creature for creature in self.creatures
-                                                if not creature.dead]
+        self.organisms = [organism for organism in self.organisms
+                          if not organism.is_dead]
 
-world = World()
-world.populate_world()
+    def save_ecosystem(self, filename):
+        fig = self.get_ecosystem_image()
+        plt.savefig(filename, dpi=72, bbox_inches='tight', pad_inches=0)
+        plt.close(fig)
+
+    def get_ecosystem_array(self):
+        return [[self.grid[y][x].species if self.grid[y][x] else 0
+                    for x in range(self.width)] for y in range(self.height)]
+
+    def display_ecosystem(self):
+        fig = self.get_ecosystem_image()
+        plt.show()
+        plt.close(fig)
+
+initial_energy_levels = {FISH: 20, SHARK: 3}
+reproduction_limits = {FISH: 4, SHARK: 12}
+
+ecosystem = Ecosystem()
+ecosystem.populate_ecosystem()
 
 fig = plt.figure(figsize=(8.3333, 6.25), dpi=72)
 ax = fig.add_subplot(111)
 ax.set_xticks([])
 ax.set_yticks([])
 ax.axis('off')
-im = ax.imshow(world.get_world_image_array(), interpolation='nearest', cmap=cm)
+img = ax.imshow(ecosystem.get_ecosystem_array(), interpolation='nearest', cmap=ecosystem_cmap)
 
 def update(frame):
-    world.evolve_world()
-    im.set_array(world.get_world_image_array())
-    ax.set_title(f"Tiempo: {frame + 1}")
-    return im,
+    ecosystem.evolve_ecosystem()
+    img.set_array(ecosystem.get_ecosystem_array())
+    ax.set_title(f"Step: {frame + 1}")
+    return img,
 
-animation = FuncAnimation(fig, update, frames=MAX_CHRONONS, repeat=False, blit=True)
+animation = FuncAnimation(fig, update, frames=NUM_TIME_STEPS, repeat=False, blit=True)
 
 plt.show()
