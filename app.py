@@ -1,19 +1,17 @@
 import random
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import ListedColormap
 
 EMPTY = 0
 FISH = 1
 SHARK = 2
 
-colors = ['#FFFFFF', '#ff69b4', '#ffd700']
+colors = ['#87CEEB', '#FF6347', '#32CD32']
 n_bin = 3
-cm = LinearSegmentedColormap.from_list(
-        'wator_cmap', colors, N=n_bin)
+cm = ListedColormap(colors, N=n_bin)
 
 MAX_CHRONONS = 400
-SAVE_EVERY = 1
 SEED = 10
 random.seed(SEED)
 
@@ -28,7 +26,6 @@ class Creature():
         self.fertility_threshold = fertility_threshold
         self.fertility = 0
         self.dead = False
-
 
 class World():
     def __init__(self, width=75, height=50):
@@ -154,7 +151,7 @@ im = ax.imshow(world.get_world_image_array(), interpolation='nearest', cmap=cm)
 def update(frame):
     world.evolve_world()
     im.set_array(world.get_world_image_array())
-    ax.set_title(f"Chronon: {frame + 1}")
+    ax.set_title(f"Tiempo: {frame + 1}")
     return im,
 
 animation = FuncAnimation(fig, update, frames=MAX_CHRONONS, repeat=False, blit=True)
