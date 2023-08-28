@@ -1,3 +1,8 @@
+# Autor: Manuel Villalpando Linares
+# Fecha: 27 de agosto del 2023
+# Clase: TC2008B
+
+
 import random
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
